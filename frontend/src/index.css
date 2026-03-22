@@ -1,0 +1,10 @@
+/* Minimal global reset */
+body {
+  margin: 0;
+}
+
+/* Prevent FOUC on links */
+a {
+  color: inherit;
+  text-decoration: none;
+}

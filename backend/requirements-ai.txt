@@ -1,0 +1,4 @@
+# AI features: semantic search + AI chat
+# Install with: pip install -r requirements-ai.txt
+-r requirements.txt
+chromadb>=1.0.0
