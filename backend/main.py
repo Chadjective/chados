@@ -4,7 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from database import init_db, get_connection
 from config import DB_PATH
 
-app = FastAPI(title="Personal Archive", version="2.0.0")
+app = FastAPI(title="ChadOS", version="2.0.0")
 
 # CORS for frontend dev server
 app.add_middleware(

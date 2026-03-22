@@ -12,7 +12,7 @@ fi
 TAKEOUT_PATH="${1:-}"
 
 echo "╔══════════════════════════════════════════╗"
-echo "║    Personal Google Archive — Import      ║"
+echo "║          ChadOS — Import                 ║"
 echo "╚══════════════════════════════════════════╝"
 echo ""
 

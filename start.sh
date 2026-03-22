@@ -15,7 +15,7 @@ if command -v fnm &> /dev/null; then
 fi
 
 echo "=================================="
-echo "  Personal Google Archive"
+echo "  ChadOS"
 echo "=================================="
 echo ""
 
@@ -62,7 +62,7 @@ open "http://localhost:5173" 2>/dev/null || xdg-open "http://localhost:5173" 2>/
 
 echo ""
 echo "╔══════════════════════════════════════╗"
-echo "║    Personal Google Archive is up!    ║"
+echo "║    ChadOS is up!    ║"
 echo "╠══════════════════════════════════════╣"
 echo "║  Frontend: http://localhost:5173     ║"
 echo "║  Backend:  http://localhost:8000     ║"

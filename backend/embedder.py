@@ -594,7 +594,7 @@ def main():
     args = parser.parse_args()
 
     print("=" * 60)
-    print("Personal Archive Embedding Builder")
+    print("ChadOS Embedding Builder")
     print("=" * 60)
 
     # Check Ollama

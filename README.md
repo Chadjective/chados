@@ -1,6 +1,8 @@
-# Personal Google Archive
+# ChadOS
 
-A local web application for browsing and searching your entire Google history offline — emails, photos, calendar, contacts, chat, drive files, and more — using data exported from Google Takeout.
+Your digital life, locally owned and searchable.
+
+ChadOS is a local web application for browsing and searching your entire Google history offline — emails, photos, calendar, contacts, chat, drive files, and more — using data exported from Google Takeout.
 
 Everything runs on your machine. No data leaves your computer.
 
@@ -27,7 +29,7 @@ Go to [takeout.google.com](https://takeout.google.com), select the data you want
 
 ```bash
 git clone <this-repo>
-cd personal-archive
+cd chados
 ./setup.sh
 ```
 
