@@ -40,13 +40,13 @@ async def photo_stats():
     conn = get_connection(readonly=True)
     try:
         c = conn.cursor()
-        total_photos = c.execute("SELECT COUNT(*) FROM photos WHERE is_video = 0").fetchone()[0]
-        total_videos = c.execute("SELECT COUNT(*) FROM photos WHERE is_video = 1").fetchone()[0]
+        total_photos = c.execute("SELECT COUNT(*) FROM photos WHERE is_video = 0 AND deleted_at IS NULL").fetchone()[0]
+        total_videos = c.execute("SELECT COUNT(*) FROM photos WHERE is_video = 1 AND deleted_at IS NULL").fetchone()[0]
         total_albums = c.execute("SELECT COUNT(*) FROM albums").fetchone()[0]
         date_range = c.execute(
-            "SELECT MIN(date_taken) as earliest, MAX(date_taken) as latest FROM photos"
+            "SELECT MIN(date_taken) as earliest, MAX(date_taken) as latest FROM photos WHERE deleted_at IS NULL"
         ).fetchone()
-        total_size = c.execute("SELECT COALESCE(SUM(size_bytes), 0) FROM photos").fetchone()[0]
+        total_size = c.execute("SELECT COALESCE(SUM(size_bytes), 0) FROM photos WHERE deleted_at IS NULL").fetchone()[0]
         return {
             "total_photos": total_photos,
             "total_videos": total_videos,
@@ -74,7 +74,7 @@ async def photo_timeline():
                 CAST(strftime('%m', date_taken) AS INTEGER) as month,
                 COUNT(*) as count
             FROM photos
-            WHERE date_taken IS NOT NULL
+            WHERE date_taken IS NOT NULL AND deleted_at IS NULL
             GROUP BY year, month
             ORDER BY year DESC, month DESC
         """).fetchall()
@@ -100,11 +100,11 @@ async def search_photos(
         c = conn.cursor()
         like = f"%{q}%"
         count = c.execute(
-            "SELECT COUNT(*) FROM photos WHERE title LIKE ? OR description LIKE ? OR filename LIKE ? OR source_album LIKE ?",
+            "SELECT COUNT(*) FROM photos WHERE deleted_at IS NULL AND (title LIKE ? OR description LIKE ? OR filename LIKE ? OR source_album LIKE ?)",
             (like, like, like, like)
         ).fetchone()[0]
         rows = c.execute(
-            "SELECT * FROM photos WHERE title LIKE ? OR description LIKE ? OR filename LIKE ? OR source_album LIKE ? "
+            "SELECT * FROM photos WHERE deleted_at IS NULL AND (title LIKE ? OR description LIKE ? OR filename LIKE ? OR source_album LIKE ?) "
             "ORDER BY date_taken_unix DESC LIMIT ? OFFSET ?",
             (like, like, like, like, limit, offset)
         ).fetchall()
@@ -161,7 +161,7 @@ async def get_album_photos(
         rows = c.execute("""
             SELECT p.* FROM photos p
             JOIN photo_albums pa ON pa.photo_id = p.id
-            WHERE pa.album_id = ?
+            WHERE pa.album_id = ? AND p.deleted_at IS NULL
             ORDER BY p.date_taken_unix DESC
             LIMIT ? OFFSET ?
         """, (album_id, limit, offset)).fetchall()
@@ -180,7 +180,7 @@ async def get_photo(photo_id: int):
     """Get full photo metadata."""
     conn = get_connection(readonly=True)
     try:
-        row = conn.execute("SELECT * FROM photos WHERE id = ?", (photo_id,)).fetchone()
+        row = conn.execute("SELECT * FROM photos WHERE id = ? AND deleted_at IS NULL", (photo_id,)).fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="Photo not found")
 
@@ -258,8 +258,8 @@ async def list_photos(
     conn = get_connection(readonly=True)
     try:
         c = conn.cursor()
-        conditions = []  # type: List[str]
-        params = []  # type: list
+        conditions: List[str] = ["deleted_at IS NULL"]
+        params: list = []
 
         if year:
             conditions.append("CAST(strftime('%Y', date_taken) AS INTEGER) = ?")

@@ -175,6 +175,72 @@ def get_exif_date(filepath):
         return None, None
 
 
+def get_exif_gps(filepath):
+    """Extract GPS coordinates from image EXIF data using Pillow.
+
+    Google Takeout strips most location data, but photos imported straight
+    from a phone/camera (e.g. the external drives) keep GPS in the EXIF
+    GPSInfo IFD. Returns (latitude, longitude, altitude) as signed decimal
+    degrees / metres, or (None, None, None) if unavailable.
+    """
+    try:
+        from PIL import Image
+        try:
+            import pillow_heif
+            pillow_heif.register_heif_opener()
+        except ImportError:
+            pass
+
+        with Image.open(filepath) as img:
+            exif_data = img.getexif()
+            if not exif_data:
+                return None, None, None
+
+            # GPSInfo IFD lives under tag 0x8825 (34853)
+            try:
+                gps = exif_data.get_ifd(0x8825)
+            except Exception:
+                gps = None
+            if not gps:
+                return None, None, None
+
+            def _to_decimal(dms, ref):
+                # dms is (degrees, minutes, seconds) of IFDRational
+                deg, minute, sec = (float(x) for x in dms)
+                val = deg + minute / 60.0 + sec / 3600.0
+                if ref in ('S', 'W'):
+                    val = -val
+                return val
+
+            lat_dms, lat_ref = gps.get(2), gps.get(1)
+            lng_dms, lng_ref = gps.get(4), gps.get(3)
+            if not lat_dms or not lng_dms or not lat_ref or not lng_ref:
+                return None, None, None
+
+            latitude = _to_decimal(lat_dms, lat_ref)
+            longitude = _to_decimal(lng_dms, lng_ref)
+
+            # Drop the null island / clearly invalid coordinates
+            if latitude == 0 and longitude == 0:
+                return None, None, None
+            if not (-90 <= latitude <= 90) or not (-180 <= longitude <= 180):
+                return None, None, None
+
+            altitude = None
+            alt_val = gps.get(6)
+            if alt_val is not None:
+                try:
+                    altitude = float(alt_val)
+                    if gps.get(5) == 1:  # below sea level
+                        altitude = -altitude
+                except (TypeError, ValueError):
+                    altitude = None
+
+            return latitude, longitude, altitude
+    except Exception:
+        return None, None, None
+
+
 def get_image_dimensions(filepath):
     """Get image width and height using Pillow."""
     try:

@@ -14,6 +14,7 @@ import {
   FolderOpen,
   Film,
   Heart,
+  Upload,
   Users,
   CalendarDays,
   MessageSquare,
@@ -57,6 +58,7 @@ const PHOTO_ITEMS = [
   { path: '/photos/albums', label: 'Albums', icon: <FolderOpen size={18} /> },
   { path: '/photos/videos', label: 'Videos', icon: <Film size={18} /> },
   { path: '/photos/favorites', label: 'Favorites', icon: <Heart size={18} /> },
+  { path: '/photos/import', label: 'Import', icon: <Upload size={18} /> },
 ];
 
 const OTHER_SECTIONS = [
@@ -67,6 +69,8 @@ const OTHER_SECTIONS = [
   { path: '/notes', label: 'Notes', icon: <StickyNote size={18} /> },
   { path: '/analytics', label: 'Analytics', icon: <BarChart3 size={18} /> },
   { path: '/ai-chat', label: 'AI Chat', icon: <MessageCircle size={18} /> },
+  { path: '/space', label: 'Space Manager', icon: <HardDrive size={18} /> },
+  { path: '/tags', label: 'Tags', icon: <Tag size={18} /> },
 ];
 
 type Theme = 'light' | 'dark' | 'claude';
@@ -177,6 +181,15 @@ export default function Sidebar() {
           </div>
         </>
       )}
+
+      <div className="sidebar-divider" />
+      <button
+        className={`sidebar-item ${location.pathname === '/trash' ? 'active' : ''}`}
+        onClick={() => navigate('/trash')}
+      >
+        <span className="sidebar-icon"><Trash2 size={18} /></span>
+        <span className="sidebar-label">ChadOS Trash</span>
+      </button>
 
       <div className="sidebar-divider" />
       <div className="sidebar-section-title">Photos</div>

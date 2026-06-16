@@ -1,6 +1,7 @@
 import json
 import re
 import sqlite3
+from datetime import datetime, timedelta
 from typing import Optional, List
 from fastapi import APIRouter, Query, HTTPException
 from database import get_connection
@@ -61,7 +62,8 @@ def parse_search_query(q: str) -> dict:
     """Parse Gmail-style search operators from a query string.
 
     Supports: from:, to:, subject:, label:, has:attachment,
-              before:, after:, is:starred, is:unread, is:read
+              before:, after:, is:starred, is:unread, is:read,
+              larger:, smaller:, older_than:, newer_than:, unsubscribe:
     Returns a dict with extracted operators and remaining free text.
     """
     filters: dict = {}
@@ -77,6 +79,11 @@ def parse_search_query(q: str) -> dict:
         "after": r'after:(\S+)',
         "has": r'has:(\S+)',
         "is": r'is:(\S+)',
+        "larger": r'larger:(\S+)',
+        "smaller": r'smaller:(\S+)',
+        "older_than": r'older_than:(\S+)',
+        "newer_than": r'newer_than:(\S+)',
+        "unsubscribe": r'unsubscribe:(\S+)',
     }
 
     for key, pattern in multi_patterns.items():
@@ -168,6 +175,66 @@ def _apply_filters(filters: dict, conditions: list, params: list) -> None:
         conditions.append("e.date > ?")
         params.append(val)
 
+    # --- Advanced search operators ---
+
+    def _parse_size(s: str) -> int:
+        """Parse size string like '5mb', '100kb', '1gb' to bytes."""
+        s = s.lower().strip()
+        multipliers = {"b": 1, "kb": 1024, "mb": 1024**2, "gb": 1024**3}
+        for suffix, mult in sorted(multipliers.items(), key=lambda x: -len(x[0])):
+            if s.endswith(suffix):
+                return int(float(s[:-len(suffix)]) * mult)
+        return int(s)
+
+    def _parse_age(s: str) -> str:
+        """Parse age string like '2y', '6m', '30d' to ISO date."""
+        s = s.lower().strip()
+        now = datetime.utcnow()
+        if s.endswith("y"):
+            dt = now - timedelta(days=int(s[:-1]) * 365)
+        elif s.endswith("m"):
+            dt = now - timedelta(days=int(s[:-1]) * 30)
+        elif s.endswith("d"):
+            dt = now - timedelta(days=int(s[:-1]))
+        else:
+            dt = now - timedelta(days=int(s))
+        return dt.isoformat()
+
+    if filters.get("larger"):
+        val = filters["larger"]
+        if isinstance(val, list):
+            val = val[0]
+        conditions.append("e.raw_size_bytes > ?")
+        params.append(_parse_size(val))
+
+    if filters.get("smaller"):
+        val = filters["smaller"]
+        if isinstance(val, list):
+            val = val[0]
+        conditions.append("e.raw_size_bytes < ?")
+        params.append(_parse_size(val))
+
+    if filters.get("older_than"):
+        val = filters["older_than"]
+        if isinstance(val, list):
+            val = val[0]
+        conditions.append("e.date < ?")
+        params.append(_parse_age(val))
+
+    if filters.get("newer_than"):
+        val = filters["newer_than"]
+        if isinstance(val, list):
+            val = val[0]
+        conditions.append("e.date > ?")
+        params.append(_parse_age(val))
+
+    if filters.get("unsubscribe"):
+        val = filters["unsubscribe"]
+        if isinstance(val, list):
+            val = val[0]
+        if val.lower() == "true":
+            conditions.append("(e.body_text LIKE '%unsubscribe%' OR e.body_html LIKE '%unsubscribe%')")
+
 
 # ---------------------------------------------------------------------------
 # Routes
@@ -180,10 +247,10 @@ async def email_stats():
     try:
         cursor = conn.cursor()
 
-        total = cursor.execute("SELECT COUNT(*) FROM emails").fetchone()[0]
+        total = cursor.execute("SELECT COUNT(*) FROM emails WHERE deleted_at IS NULL").fetchone()[0]
 
         date_range = cursor.execute(
-            "SELECT MIN(date) AS earliest, MAX(date) AS latest FROM emails"
+            "SELECT MIN(date) AS earliest, MAX(date) AS latest FROM emails WHERE deleted_at IS NULL"
         ).fetchone()
 
         total_attachments = cursor.execute(
@@ -191,11 +258,11 @@ async def email_stats():
         ).fetchone()[0]
 
         starred = cursor.execute(
-            "SELECT COUNT(*) FROM emails WHERE is_starred = 1"
+            "SELECT COUNT(*) FROM emails WHERE is_starred = 1 AND deleted_at IS NULL"
         ).fetchone()[0]
 
         unread = cursor.execute(
-            "SELECT COUNT(*) FROM emails WHERE is_read = 0"
+            "SELECT COUNT(*) FROM emails WHERE is_read = 0 AND deleted_at IS NULL"
         ).fetchone()[0]
 
         return {
@@ -213,11 +280,12 @@ async def email_stats():
         conn.close()
 
 
-@router.get("/search", response_model=SearchResult)
+@router.get("/search")
 async def search_emails(
     q: str = Query("", description="Search query with Gmail-style operators"),
     offset: int = Query(0, ge=0, description="Number of results to skip"),
     limit: int = Query(50, ge=1, le=200, description="Max results to return"),
+    count_only: bool = Query(False, description="Return only count and total size"),
 ):
     """Full-text search with Gmail-like operator parsing.
 
@@ -233,8 +301,8 @@ async def search_emails(
         cursor = conn.cursor()
         filters = parse_search_query(q)
 
-        conditions = []  # type: List[str]
-        params = []  # type: List
+        conditions: List[str] = ["e.deleted_at IS NULL"]
+        params: List = []
         _apply_filters(filters, conditions, params)
 
         free_text = filters.get("text", "").strip()
@@ -260,10 +328,11 @@ async def search_emails(
             id_union = (
                 "SELECT e_inner.id FROM emails e_inner "
                 "INNER JOIN emails_fts ON emails_fts.rowid = e_inner.id "
-                "WHERE emails_fts MATCH ? "
+                "WHERE emails_fts MATCH ? AND e_inner.deleted_at IS NULL "
                 "UNION "
                 "SELECT e_like.id FROM emails e_like "
-                "WHERE (e_like.from_address LIKE ? OR e_like.to_addresses LIKE ? "
+                "WHERE e_like.deleted_at IS NULL AND "
+                "(e_like.from_address LIKE ? OR e_like.to_addresses LIKE ? "
                 "OR e_like.cc_addresses LIKE ?)"
             )
 
@@ -308,6 +377,13 @@ async def search_emails(
             query_params = params + [limit, offset]
 
         total = cursor.execute(count_sql, count_params).fetchone()[0]
+
+        if count_only:
+            # Also compute total size for "preview before delete"
+            size_sql = count_sql.replace("SELECT COUNT(*)", "SELECT COALESCE(SUM(e.raw_size_bytes), 0)")
+            total_size = cursor.execute(size_sql, count_params).fetchone()[0]
+            return {"total": total, "total_size_bytes": total_size}
+
         rows = cursor.execute(query_sql, query_params).fetchall()
         emails = [_build_email_summary(row) for row in rows]
 
@@ -334,7 +410,7 @@ async def get_email_thread(email_id: int):
 
         # First get the thread_id for this email
         row = cursor.execute(
-            "SELECT thread_id FROM emails WHERE id = ?", (email_id,)
+            "SELECT thread_id FROM emails WHERE id = ? AND deleted_at IS NULL", (email_id,)
         ).fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="Email not found")
@@ -366,7 +442,7 @@ async def get_email_thread(email_id: int):
             )
 
         rows = cursor.execute(
-            "SELECT * FROM emails WHERE thread_id = ? ORDER BY date_unix ASC",
+            "SELECT * FROM emails WHERE thread_id = ? AND deleted_at IS NULL ORDER BY date_unix ASC",
             (thread_id,),
         ).fetchall()
 
@@ -410,7 +486,7 @@ async def get_email(email_id: int):
         cursor = conn.cursor()
 
         row = cursor.execute(
-            "SELECT * FROM emails WHERE id = ?", (email_id,)
+            "SELECT * FROM emails WHERE id = ? AND deleted_at IS NULL", (email_id,)
         ).fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="Email not found")
@@ -458,8 +534,8 @@ async def list_emails(
     try:
         cursor = conn.cursor()
 
-        conditions = []  # type: List[str]
-        params = []  # type: List
+        conditions: List[str] = ["e.deleted_at IS NULL"]
+        params: List = []
 
         if label:
             conditions.append(

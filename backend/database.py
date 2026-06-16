@@ -373,6 +373,102 @@ def _create_fts_triggers(cursor):
     """)
 
 
+def run_migrations():
+    """Run schema migrations for v2 features (soft delete, tags, actions)."""
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # --- Soft delete columns ---
+    tables_with_soft_delete = [
+        "emails", "photos", "calendar_events", "chat_messages",
+        "drive_files", "contacts",
+    ]
+    for table in tables_with_soft_delete:
+        try:
+            cursor.execute(
+                f"SELECT deleted_at FROM {table} LIMIT 0"
+            )
+        except Exception:
+            cursor.execute(
+                f"ALTER TABLE {table} ADD COLUMN deleted_at TEXT DEFAULT NULL"
+            )
+
+    # --- Photo provenance (v4: drive/local-folder import) ---
+    # import_source: where the photo came from ('takeout' | 'local_folder' | 'upload')
+    # location_source: how lat/lng was obtained ('sidecar' | 'exif' | 'timeline')
+    photo_columns = {
+        "import_source": "TEXT DEFAULT 'takeout'",
+        "location_source": "TEXT DEFAULT NULL",
+    }
+    for col, decl in photo_columns.items():
+        try:
+            cursor.execute(f"SELECT {col} FROM photos LIMIT 0")
+        except Exception:
+            cursor.execute(f"ALTER TABLE photos ADD COLUMN {col} {decl}")
+
+    # --- User-created tags ---
+    cursor.executescript("""
+        CREATE TABLE IF NOT EXISTS user_tags (
+            id INTEGER PRIMARY KEY,
+            name TEXT NOT NULL UNIQUE,
+            color TEXT DEFAULT '#1a73e8',
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS item_tags (
+            id INTEGER PRIMARY KEY,
+            tag_id INTEGER NOT NULL REFERENCES user_tags(id),
+            item_type TEXT NOT NULL,
+            item_id INTEGER NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(tag_id, item_type, item_id)
+        );
+
+        CREATE TABLE IF NOT EXISTS enrichment_jobs (
+            id INTEGER PRIMARY KEY,
+            job_type TEXT NOT NULL,        -- 'photo_import' | 'geo_backfill' | 'vision_caption' | ...
+            label TEXT,                    -- human-readable description (e.g. the folder path)
+            scope_json TEXT,               -- job parameters as JSON
+            status TEXT DEFAULT 'queued',  -- queued | running | done | cancelled | error
+            total INTEGER DEFAULT 0,
+            processed INTEGER DEFAULT 0,
+            imported INTEGER DEFAULT 0,
+            skipped INTEGER DEFAULT 0,
+            errors INTEGER DEFAULT 0,
+            error TEXT,                    -- fatal error message, if status='error'
+            started_at TEXT,
+            finished_at TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS user_actions (
+            id INTEGER PRIMARY KEY,
+            action TEXT NOT NULL,
+            item_type TEXT NOT NULL,
+            item_id INTEGER NOT NULL,
+            detail TEXT,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
+
+        -- Composite (deleted_at, <date> DESC) indexes: the list views filter
+        -- `WHERE deleted_at IS NULL` and `ORDER BY <date>_unix DESC`. A plain
+        -- index on deleted_at alone lures the planner away from the date index,
+        -- forcing a full-table TEMP B-TREE sort (catastrophic on this DB's
+        -- ~365k emails / ~273k photos). The composite serves both clauses, so
+        -- the planner walks it in date order and stops at LIMIT.
+        CREATE INDEX IF NOT EXISTS idx_emails_deleted_date ON emails(deleted_at, date_unix DESC);
+        CREATE INDEX IF NOT EXISTS idx_photos_deleted_date ON photos(deleted_at, date_taken_unix DESC);
+        DROP INDEX IF EXISTS idx_emails_deleted;
+        DROP INDEX IF EXISTS idx_photos_deleted;
+        CREATE INDEX IF NOT EXISTS idx_item_tags_lookup ON item_tags(item_type, item_id);
+        CREATE INDEX IF NOT EXISTS idx_item_tags_tag ON item_tags(tag_id);
+    """)
+
+    conn.commit()
+    conn.close()
+
+
 if __name__ == "__main__":
     init_db()
+    run_migrations()
     print(f"Database initialized at {DB_PATH}")

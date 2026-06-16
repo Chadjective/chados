@@ -1,7 +1,7 @@
 import sqlite3
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from database import init_db, get_connection
+from database import init_db, get_connection, run_migrations
 from config import DB_PATH
 
 app = FastAPI(title="ChadOS", version="2.0.0")
@@ -23,11 +23,13 @@ import os
 
 from routers import emails, labels, attachments, photos  # noqa: E402
 from routers import contacts, calendar, chat, drive, notes, search, analytics  # noqa: E402
-from routers import related  # noqa: E402
+from routers import related, actions, photo_import  # noqa: E402
 
 app.include_router(emails.router)
 app.include_router(labels.router)
 app.include_router(attachments.router)
+# Register photo-import before photos so /api/photos/import/* resolves cleanly.
+app.include_router(photo_import.router)
 app.include_router(photos.router)
 app.include_router(contacts.router)
 app.include_router(calendar.router)
@@ -37,6 +39,7 @@ app.include_router(notes.router)
 app.include_router(search.router)
 app.include_router(analytics.router)
 app.include_router(related.router)
+app.include_router(actions.router)
 
 # AI features are optional — only load if not explicitly disabled
 ENABLE_AI = os.environ.get("ARCHIVE_ENABLE_AI", "auto")
@@ -56,6 +59,7 @@ else:
 async def startup():
     try:
         init_db()
+        run_migrations()
     except Exception:
         # Database may be locked by import process — that's OK,
         # schema already exists if import is running.

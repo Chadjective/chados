@@ -73,6 +73,7 @@ async def list_calendars():
         rows = c.execute(
             "SELECT calendar_name, COUNT(*) as event_count "
             "FROM calendar_events "
+            "WHERE deleted_at IS NULL "
             "GROUP BY calendar_name "
             "ORDER BY event_count DESC"
         ).fetchall()
@@ -107,7 +108,7 @@ async def events_by_month(year: int, month: int):
 
         rows = c.execute(
             "SELECT * FROM calendar_events "
-            "WHERE start_time >= ? AND start_time < ? "
+            "WHERE start_time >= ? AND start_time < ? AND deleted_at IS NULL "
             "ORDER BY start_unix ASC",
             (start_date, end_date),
         ).fetchall()
@@ -130,7 +131,7 @@ async def get_event(event_id: int):
     conn = get_connection(readonly=True)
     try:
         row = conn.execute(
-            "SELECT * FROM calendar_events WHERE id = ?", (event_id,)
+            "SELECT * FROM calendar_events WHERE id = ? AND deleted_at IS NULL", (event_id,)
         ).fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="Event not found")
@@ -156,8 +157,8 @@ async def list_events(
     conn = get_connection(readonly=True)
     try:
         c = conn.cursor()
-        conditions = []  # type: List[str]
-        params = []  # type: list
+        conditions: List[str] = ["deleted_at IS NULL"]
+        params: list = []
 
         if calendar:
             conditions.append("calendar_name = ?")

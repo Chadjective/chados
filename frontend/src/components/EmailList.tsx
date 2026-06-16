@@ -4,7 +4,9 @@ import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 import type { EmailSummary } from '../types';
 import { fetchEmails, searchEmails } from '../utils/api';
 import EmailRow from './EmailRow';
+import ActionToolbar from './ActionToolbar';
 import { useKeyboardShortcuts } from '../hooks/useKeyboardShortcuts';
+import { useSelection } from '../hooks/useSelection';
 
 const PAGE_SIZE = 50;
 
@@ -25,6 +27,7 @@ export default function EmailList({ searchInputRef }: EmailListProps) {
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const fetchIdRef = useRef(0);
   const virtuosoRef = useRef<VirtuosoHandle>(null);
+  const selection = useSelection();
 
   const loadEmails = useCallback(
     async (offset: number, append: boolean) => {
@@ -66,6 +69,7 @@ export default function EmailList({ searchInputRef }: EmailListProps) {
     setTotal(0);
     setSelectedIndex(-1);
     setInitialLoading(true);
+    selection.clearSelection();
     loadEmails(0, false);
   }, [loadEmails]);
 
@@ -132,22 +136,58 @@ export default function EmailList({ searchInputRef }: EmailListProps) {
       ? emails[selectedIndex].id
       : null;
 
+  const allEmailIds = emails.map((e) => e.id);
+  const allSelected = emails.length > 0 && selection.selectedCount === emails.length;
+
+  function handleSelectAll() {
+    if (allSelected) {
+      selection.clearSelection();
+    } else {
+      selection.selectAll(allEmailIds);
+    }
+  }
+
+  function handleActionComplete() {
+    // Reload the list after an action
+    setEmails([]);
+    setTotal(0);
+    setInitialLoading(true);
+    loadEmails(0, false);
+  }
+
   return (
     <div className="email-list">
-      <div className="email-list-header">
-        <span className="email-list-count">
-          {total.toLocaleString()} email{total !== 1 ? 's' : ''}
-          {query && (
-            <span className="email-list-query">
-              {' '}
-              for &ldquo;{query}&rdquo;
+      {selection.selectedCount > 0 ? (
+        <ActionToolbar
+          selectedIds={selection.selectedArray}
+          onActionComplete={handleActionComplete}
+          onClearSelection={selection.clearSelection}
+        />
+      ) : (
+        <div className="email-list-header">
+          <div className="email-list-header-left">
+            <input
+              type="checkbox"
+              checked={allSelected}
+              onChange={handleSelectAll}
+              className="email-list-select-all"
+              title="Select all"
+            />
+            <span className="email-list-count">
+              {total.toLocaleString()} email{total !== 1 ? 's' : ''}
+              {query && (
+                <span className="email-list-query">
+                  {' '}
+                  for &ldquo;{query}&rdquo;
+                </span>
+              )}
+              {label && !query && (
+                <span className="email-list-label"> in {label}</span>
+              )}
             </span>
-          )}
-          {label && !query && (
-            <span className="email-list-label"> in {label}</span>
-          )}
-        </span>
-      </div>
+          </div>
+        </div>
+      )}
       <Virtuoso
         ref={virtuosoRef}
         style={{ height: 'calc(100% - 40px)' }}
@@ -157,7 +197,14 @@ export default function EmailList({ searchInputRef }: EmailListProps) {
         itemContent={(index) => {
           const email = emails[index];
           if (!email) return null;
-          return <EmailRow email={email} isSelected={selectedId === email.id} />;
+          return (
+            <EmailRow
+              email={email}
+              isSelected={selectedId === email.id}
+              isChecked={selection.isSelected(email.id)}
+              onCheckToggle={(shiftKey) => selection.toggle(email.id, index, shiftKey, allEmailIds)}
+            />
+          );
         }}
         components={{
           Footer: () =>

@@ -7,6 +7,8 @@ interface UseKeyboardShortcutsOptions {
   emailCount: number;
   getEmailId: (index: number) => number | undefined;
   searchInputRef: RefObject<HTMLInputElement | null>;
+  onToggleSelect?: (id: number) => void;
+  onDeleteSelected?: () => void;
 }
 
 export function useKeyboardShortcuts({
@@ -15,6 +17,8 @@ export function useKeyboardShortcuts({
   emailCount,
   getEmailId,
   searchInputRef,
+  onToggleSelect,
+  onDeleteSelected,
 }: UseKeyboardShortcutsOptions) {
   const navigate = useNavigate();
   const location = useLocation();
@@ -70,6 +74,17 @@ export function useKeyboardShortcuts({
           if (emailId !== undefined) {
             navigate(`/email/${emailId}`);
           }
+        } else if (e.key === 'x' && selectedIndex >= 0) {
+          // Toggle checkbox selection
+          e.preventDefault();
+          const emailId = getEmailId(selectedIndex);
+          if (emailId !== undefined && onToggleSelect) {
+            onToggleSelect(emailId);
+          }
+        } else if (e.key === '#') {
+          // Delete selected
+          e.preventDefault();
+          onDeleteSelected?.();
         }
       }
     },
@@ -82,6 +97,8 @@ export function useKeyboardShortcuts({
       navigate,
       searchInputRef,
       setSelectedIndex,
+      onToggleSelect,
+      onDeleteSelected,
     ]
   );
 

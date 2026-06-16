@@ -6,9 +6,11 @@ import { formatEmailDate, formatSender } from '../utils/format';
 interface EmailRowProps {
   email: EmailSummary;
   isSelected: boolean;
+  isChecked?: boolean;
+  onCheckToggle?: (shiftKey: boolean) => void;
 }
 
-export default function EmailRow({ email, isSelected }: EmailRowProps) {
+export default function EmailRow({ email, isSelected, isChecked = false, onCheckToggle }: EmailRowProps) {
   const navigate = useNavigate();
   const sender = formatSender(email.from_name, email.from_address);
   const date = formatEmailDate(email.date);
@@ -16,7 +18,7 @@ export default function EmailRow({ email, isSelected }: EmailRowProps) {
 
   return (
     <div
-      className={`email-row${isSelected ? ' selected' : ''}${isUnread ? ' unread' : ''}`}
+      className={`email-row${isSelected ? ' selected' : ''}${isUnread ? ' unread' : ''}${isChecked ? ' checked' : ''}`}
       onClick={() => navigate(`/email/${email.id}`)}
       role="button"
       tabIndex={0}
@@ -25,7 +27,15 @@ export default function EmailRow({ email, isSelected }: EmailRowProps) {
       }}
     >
       <div className="email-row-checkbox">
-        <input type="checkbox" onClick={(e) => e.stopPropagation()} readOnly />
+        <input
+          type="checkbox"
+          checked={isChecked}
+          onClick={(e) => {
+            e.stopPropagation();
+            onCheckToggle?.(e.shiftKey);
+          }}
+          readOnly
+        />
       </div>
       <div
         className={`email-row-star${email.is_starred ? ' starred' : ''}`}

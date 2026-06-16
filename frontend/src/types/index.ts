@@ -379,3 +379,86 @@ export interface RelatedResponse {
   source: RelatedSource;
   related: RelatedItems;
 }
+
+// ── Actions / Tags ──────────────────────────────────
+
+export interface UserTag {
+  id: number;
+  name: string;
+  color: string;
+  item_count: number;
+}
+
+export interface TrashItem {
+  id: number;
+  from_name?: string | null;
+  from_address?: string | null;
+  subject?: string | null;
+  date?: string | null;
+  snippet?: string | null;
+  labels?: string[];
+  has_attachments?: boolean;
+  is_read?: boolean;
+  is_starred?: boolean;
+  raw_size_bytes?: number;
+  deleted_at: string;
+}
+
+export interface SmartFilter {
+  name: string;
+  query: string;
+  count: number;
+  size_bytes: number;
+}
+
+export interface SpaceByType {
+  count: number;
+  bytes: number;
+}
+
+export interface SpaceConsumer {
+  type: string;
+  id: number;
+  subject?: string | null;
+  from_name?: string | null;
+  date?: string | null;
+  bytes: number;
+  attachments?: number;
+}
+
+export interface SpaceAnalysis {
+  total_bytes: number;
+  by_type: Record<string, SpaceByType>;
+  top_space_consumers: SpaceConsumer[];
+  potential_savings: Record<string, SpaceByType>;
+}
+
+// ── Photo import (v4) ───────────────────────────────
+
+export interface ImportDrive {
+  name: string;
+  path: string;
+  total_bytes: number;
+  used_bytes: number;
+  free_bytes: number;
+}
+
+export type ImportJobStatus = 'queued' | 'running' | 'done' | 'cancelled' | 'error';
+
+export interface ImportJob {
+  id: number;
+  job_type: string;
+  label: string | null;
+  status: ImportJobStatus;
+  total: number;
+  processed: number;
+  imported: number;
+  skipped: number;
+  errors: number;
+  geotagged?: number;
+  phase?: string | null;
+  error?: string | null;
+  started_at?: string | null;
+  finished_at?: string | null;
+  created_at?: string;
+}

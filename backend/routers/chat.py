@@ -70,7 +70,7 @@ async def search_chat(
         like = f"%{q}%"
 
         count = c.execute(
-            "SELECT COUNT(*) FROM chat_messages WHERE content LIKE ?",
+            "SELECT COUNT(*) FROM chat_messages WHERE content LIKE ? AND deleted_at IS NULL",
             (like,),
         ).fetchone()[0]
 
@@ -78,7 +78,7 @@ async def search_chat(
             "SELECT m.*, cc.name as conversation_name "
             "FROM chat_messages m "
             "JOIN chat_conversations cc ON cc.id = m.conversation_id "
-            "WHERE m.content LIKE ? "
+            "WHERE m.content LIKE ? AND m.deleted_at IS NULL "
             "ORDER BY m.timestamp_unix DESC LIMIT ? OFFSET ?",
             (like, limit, offset),
         ).fetchall()
@@ -114,12 +114,12 @@ async def get_conversation(
             raise HTTPException(status_code=404, detail="Conversation not found")
 
         msg_count = c.execute(
-            "SELECT COUNT(*) FROM chat_messages WHERE conversation_id = ?",
+            "SELECT COUNT(*) FROM chat_messages WHERE conversation_id = ? AND deleted_at IS NULL",
             (conversation_id,),
         ).fetchone()[0]
 
         messages = c.execute(
-            "SELECT * FROM chat_messages WHERE conversation_id = ? "
+            "SELECT * FROM chat_messages WHERE conversation_id = ? AND deleted_at IS NULL "
             "ORDER BY timestamp_unix ASC LIMIT ? OFFSET ?",
             (conversation_id, limit, offset),
         ).fetchall()
@@ -176,8 +176,8 @@ async def list_conversations(
         # Get conversations ordered by their most recent message, with message count
         rows = c.execute(
             f"SELECT cc.*, "
-            f"(SELECT MAX(timestamp_unix) FROM chat_messages WHERE conversation_id = cc.id) as last_activity, "
-            f"(SELECT COUNT(*) FROM chat_messages WHERE conversation_id = cc.id) as msg_count "
+            f"(SELECT MAX(timestamp_unix) FROM chat_messages WHERE conversation_id = cc.id AND deleted_at IS NULL) as last_activity, "
+            f"(SELECT COUNT(*) FROM chat_messages WHERE conversation_id = cc.id AND deleted_at IS NULL) as msg_count "
             f"FROM chat_conversations cc "
             f"WHERE {where} "
             f"ORDER BY last_activity DESC NULLS LAST "
@@ -190,7 +190,7 @@ async def list_conversations(
             # Get last message for preview
             last_msg = c.execute(
                 "SELECT sender_name, content, timestamp FROM chat_messages "
-                "WHERE conversation_id = ? ORDER BY timestamp_unix DESC LIMIT 1",
+                "WHERE conversation_id = ? AND deleted_at IS NULL ORDER BY timestamp_unix DESC LIMIT 1",
                 (row["id"],),
             ).fetchone()
             summary = _conversation_summary(row, last_msg)

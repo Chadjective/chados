@@ -472,8 +472,8 @@ async def overview():
         # Email overview – use separate fast queries instead of one slow SUM
         email_ov = None
         if _table_exists(cursor, "emails"):
-            count = cursor.execute("SELECT COUNT(*) FROM emails").fetchone()[0]
-            dates = cursor.execute("SELECT MIN(date) AS earliest, MAX(date) AS latest FROM emails").fetchone()
+            count = cursor.execute("SELECT COUNT(*) FROM emails WHERE deleted_at IS NULL").fetchone()[0]
+            dates = cursor.execute("SELECT MIN(date) AS earliest, MAX(date) AS latest FROM emails WHERE deleted_at IS NULL").fetchone()
             email_ov = DataTypeOverview(
                 count=count,
                 size_bytes=0,
@@ -484,8 +484,8 @@ async def overview():
         # Photos overview
         photo_ov = None
         if _table_exists(cursor, "photos"):
-            count = cursor.execute("SELECT COUNT(*) FROM photos").fetchone()[0]
-            videos = cursor.execute("SELECT COUNT(*) FROM photos WHERE is_video = 1").fetchone()[0]
+            count = cursor.execute("SELECT COUNT(*) FROM photos WHERE deleted_at IS NULL").fetchone()[0]
+            videos = cursor.execute("SELECT COUNT(*) FROM photos WHERE is_video = 1 AND deleted_at IS NULL").fetchone()[0]
             photo_ov = PhotoOverview(
                 count=count,
                 size_bytes=0,
@@ -499,7 +499,7 @@ async def overview():
                 SELECT COUNT(*) AS count,
                        MIN(start_time) AS earliest,
                        MAX(start_time) AS latest
-                FROM calendar_events
+                FROM calendar_events WHERE deleted_at IS NULL
             """).fetchone()
             cal_ov = CalendarOverview(
                 count=r["count"],
@@ -510,14 +510,14 @@ async def overview():
         # Contacts overview
         contacts_ov = None
         if _table_exists(cursor, "contacts"):
-            r = cursor.execute("SELECT COUNT(*) AS count FROM contacts").fetchone()
+            r = cursor.execute("SELECT COUNT(*) AS count FROM contacts WHERE deleted_at IS NULL").fetchone()
             contacts_ov = ContactsOverview(count=r["count"])
 
         # Chat overview
         chat_ov = None
         if _table_exists(cursor, "chat_conversations") and _table_exists(cursor, "chat_messages"):
             convos = cursor.execute("SELECT COUNT(*) AS count FROM chat_conversations").fetchone()
-            msgs = cursor.execute("SELECT COUNT(*) AS count FROM chat_messages").fetchone()
+            msgs = cursor.execute("SELECT COUNT(*) AS count FROM chat_messages WHERE deleted_at IS NULL").fetchone()
             chat_ov = ChatOverview(
                 conversations=convos["count"],
                 messages=msgs["count"],
@@ -526,7 +526,7 @@ async def overview():
         # Drive overview
         drive_ov = None
         if _table_exists(cursor, "drive_files"):
-            count = cursor.execute("SELECT COUNT(*) FROM drive_files").fetchone()[0]
+            count = cursor.execute("SELECT COUNT(*) FROM drive_files WHERE deleted_at IS NULL").fetchone()[0]
             drive_ov = DriveOverview(
                 count=count,
                 size_bytes=0,

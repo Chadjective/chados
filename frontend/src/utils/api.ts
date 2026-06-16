@@ -5,6 +5,8 @@ import type {
   EmailVolume, EmailHeatmap, TopContact, ContactTimeline, WritingStats,
   ArchiveOverview, OnThisDay, ActivityTimeline, PhotoStats,
   AIChatStatus, AISource, RelatedResponse,
+  UserTag, TrashItem, SmartFilter, SpaceAnalysis,
+  ImportDrive, ImportJob,
 } from '../types';
 
 const API_BASE = '/api';
@@ -455,4 +457,128 @@ export async function sendAIMessage(
     }
     callbacks.onError(err instanceof Error ? err.message : 'Unknown error');
   }
+}
+
+// ── Actions API ──────────────────────────────────────
+
+async function postJSON<T>(url: string, body: unknown): Promise<T> {
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`API error: ${res.status} ${res.statusText}`);
+  return res.json();
+}
+
+async function deleteJSON<T>(url: string): Promise<T> {
+  const res = await fetch(url, { method: 'DELETE' });
+  if (!res.ok) throw new Error(`API error: ${res.status} ${res.statusText}`);
+  return res.json();
+}
+
+async function putJSON<T>(url: string, body: unknown): Promise<T> {
+  const res = await fetch(url, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`API error: ${res.status} ${res.statusText}`);
+  return res.json();
+}
+
+export async function softDelete(itemType: string, itemIds: number[]): Promise<{ deleted: number }> {
+  return postJSON(`${API_BASE}/actions/delete`, { item_type: itemType, item_ids: itemIds });
+}
+
+export async function permanentDelete(itemType: string, itemIds: number[]): Promise<{ deleted: number; space_freed_bytes: number; files_removed: number }> {
+  return postJSON(`${API_BASE}/actions/delete`, { item_type: itemType, item_ids: itemIds, permanent: true });
+}
+
+export async function restoreItems(itemType: string, itemIds: number[]): Promise<{ restored: number }> {
+  return postJSON(`${API_BASE}/actions/restore`, { item_type: itemType, item_ids: itemIds });
+}
+
+export async function toggleStar(itemIds: number[], starred: boolean): Promise<{ updated: number }> {
+  return postJSON(`${API_BASE}/actions/star`, { item_ids: itemIds, starred });
+}
+
+export async function markRead(itemIds: number[], read: boolean): Promise<{ updated: number }> {
+  return postJSON(`${API_BASE}/actions/mark-read`, { item_ids: itemIds, read });
+}
+
+export async function modifyLabels(itemIds: number[], addLabels: string[], removeLabels: string[]): Promise<{ updated: number }> {
+  return postJSON(`${API_BASE}/actions/label`, { item_ids: itemIds, add_labels: addLabels, remove_labels: removeLabels });
+}
+
+export async function tagItems(itemType: string, itemIds: number[], tagId: number): Promise<{ tagged: number }> {
+  return postJSON(`${API_BASE}/actions/tag`, { item_type: itemType, item_ids: itemIds, tag_id: tagId });
+}
+
+export async function untagItems(itemType: string, itemIds: number[], tagId: number): Promise<{ untagged: number }> {
+  return postJSON(`${API_BASE}/actions/untag`, { item_type: itemType, item_ids: itemIds, tag_id: tagId });
+}
+
+export async function fetchTrash(itemType: string = 'email', offset = 0, limit = 50): Promise<{ items: TrashItem[]; total: number; total_size_bytes: number }> {
+  const sp = new URLSearchParams({ item_type: itemType, offset: String(offset), limit: String(limit) });
+  return fetchJSON(`${API_BASE}/actions/trash?${sp.toString()}`);
+}
+
+export async function emptyTrash(itemType: string = 'all'): Promise<{ permanently_deleted: number; space_freed_bytes: number }> {
+  return postJSON(`${API_BASE}/actions/empty-trash`, { item_type: itemType });
+}
+
+export async function fetchSpaceAnalysis(): Promise<SpaceAnalysis> {
+  return fetchJSON(`${API_BASE}/actions/space-analysis`);
+}
+
+export async function fetchSmartFilters(): Promise<{ filters: SmartFilter[] }> {
+  return fetchJSON(`${API_BASE}/smart-filters`);
+}
+
+// ── Tags API ─────────────────────────────────────────
+
+export async function fetchTags(): Promise<{ tags: UserTag[] }> {
+  return fetchJSON(`${API_BASE}/tags`);
+}
+
+export async function createTag(name: string, color: string): Promise<UserTag> {
+  return postJSON(`${API_BASE}/tags`, { name, color });
+}
+
+export async function updateTag(tagId: number, updates: { name?: string; color?: string }): Promise<UserTag> {
+  return putJSON(`${API_BASE}/tags/${tagId}`, updates);
+}
+
+export async function deleteTag(tagId: number): Promise<{ deleted: boolean }> {
+  return deleteJSON(`${API_BASE}/tags/${tagId}`);
+}
+
+export async function searchEmailsCountOnly(query: string): Promise<{ total: number; total_size_bytes: number }> {
+  const sp = new URLSearchParams({ q: query, count_only: 'true' });
+  return fetchJSON(`${API_BASE}/emails/search?${sp.toString()}`);
+}
+
+// ── Photo import (v4) ────────────────────────────────
+
+export async function fetchImportDrives(): Promise<{ drives: ImportDrive[] }> {
+  return fetchJSON(`${API_BASE}/photos/import/drives`);
+}
+
+export async function startFolderImport(
+  path: string, recursive: boolean, label?: string,
+): Promise<{ job_id: number }> {
+  return postJSON(`${API_BASE}/photos/import/folder`, { path, recursive, label });
+}
+
+export async function fetchImportJobs(): Promise<{ jobs: ImportJob[] }> {
+  return fetchJSON(`${API_BASE}/photos/import/jobs`);
+}
+
+export async function fetchImportJob(jobId: number): Promise<ImportJob> {
+  return fetchJSON(`${API_BASE}/photos/import/jobs/${jobId}`);
+}
+
+export async function cancelImportJob(jobId: number): Promise<{ cancelled: boolean }> {
+  return postJSON(`${API_BASE}/photos/import/jobs/${jobId}/cancel`, {});
 }

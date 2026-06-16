@@ -52,7 +52,7 @@ async def search_files(
     try:
         c = conn.cursor()
         like = f"%{q}%"
-        where = "filename LIKE ? OR extracted_text LIKE ? OR path LIKE ?"
+        where = "deleted_at IS NULL AND (filename LIKE ? OR extracted_text LIKE ? OR path LIKE ?)"
 
         count = c.execute(
             f"SELECT COUNT(*) FROM drive_files WHERE {where}",
@@ -79,7 +79,7 @@ async def list_folders():
         c = conn.cursor()
         rows = c.execute(
             "SELECT DISTINCT parent_path FROM drive_files "
-            "WHERE parent_path IS NOT NULL AND parent_path != '' "
+            "WHERE parent_path IS NOT NULL AND parent_path != '' AND deleted_at IS NULL "
             "ORDER BY parent_path ASC"
         ).fetchall()
 
@@ -87,7 +87,7 @@ async def list_folders():
 
         # Also include folders that are actual entries
         folder_rows = c.execute(
-            "SELECT path FROM drive_files WHERE is_folder = 1 ORDER BY path ASC"
+            "SELECT path FROM drive_files WHERE is_folder = 1 AND deleted_at IS NULL ORDER BY path ASC"
         ).fetchall()
         folder_entries = [r["path"] for r in folder_rows]
 
@@ -138,7 +138,7 @@ async def get_file(file_id: int):
     conn = get_connection(readonly=True)
     try:
         row = conn.execute(
-            "SELECT * FROM drive_files WHERE id = ?", (file_id,)
+            "SELECT * FROM drive_files WHERE id = ? AND deleted_at IS NULL", (file_id,)
         ).fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="File not found")
@@ -163,8 +163,8 @@ async def list_files(
     conn = get_connection(readonly=True)
     try:
         c = conn.cursor()
-        conditions = []  # type: List[str]
-        params = []  # type: list
+        conditions: List[str] = ["deleted_at IS NULL"]
+        params: list = []
 
         if parent_path is not None:
             conditions.append("parent_path = ?")

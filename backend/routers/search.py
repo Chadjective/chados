@@ -63,7 +63,7 @@ async def global_search(
         email_count = _safe_count(
             c,
             "SELECT COUNT(*) FROM emails "
-            "WHERE subject LIKE ? OR from_name LIKE ? OR from_address LIKE ? OR body_text LIKE ?",
+            "WHERE deleted_at IS NULL AND (subject LIKE ? OR from_name LIKE ? OR from_address LIKE ? OR body_text LIKE ?)",
             (like, like, like, like),
         )
         email_rows = _safe_query(
@@ -71,7 +71,7 @@ async def global_search(
             "SELECT id, subject, from_name, from_address, date, "
             "SUBSTR(body_text, 1, 200) as snippet "
             "FROM emails "
-            "WHERE subject LIKE ? OR from_name LIKE ? OR from_address LIKE ? OR body_text LIKE ? "
+            "WHERE deleted_at IS NULL AND (subject LIKE ? OR from_name LIKE ? OR from_address LIKE ? OR body_text LIKE ?) "
             "ORDER BY date_unix DESC LIMIT ?",
             (like, like, like, like, limit_per_type),
         )
@@ -94,14 +94,14 @@ async def global_search(
         photo_count = _safe_count(
             c,
             "SELECT COUNT(*) FROM photos "
-            "WHERE title LIKE ? OR description LIKE ? OR filename LIKE ?",
+            "WHERE deleted_at IS NULL AND (title LIKE ? OR description LIKE ? OR filename LIKE ?)",
             (like, like, like),
         )
         photo_rows = _safe_query(
             c,
             "SELECT id, title, filename, description, date_taken "
             "FROM photos "
-            "WHERE title LIKE ? OR description LIKE ? OR filename LIKE ? "
+            "WHERE deleted_at IS NULL AND (title LIKE ? OR description LIKE ? OR filename LIKE ?) "
             "ORDER BY date_taken_unix DESC LIMIT ?",
             (like, like, like, limit_per_type),
         )
@@ -123,14 +123,14 @@ async def global_search(
         contact_count = _safe_count(
             c,
             "SELECT COUNT(*) FROM contacts "
-            "WHERE name LIKE ? OR emails LIKE ? OR phones LIKE ? OR organization LIKE ?",
+            "WHERE deleted_at IS NULL AND (name LIKE ? OR emails LIKE ? OR phones LIKE ? OR organization LIKE ?)",
             (like, like, like, like),
         )
         contact_rows = _safe_query(
             c,
             "SELECT id, name, organization, emails as email_json "
             "FROM contacts "
-            "WHERE name LIKE ? OR emails LIKE ? OR phones LIKE ? OR organization LIKE ? "
+            "WHERE deleted_at IS NULL AND (name LIKE ? OR emails LIKE ? OR phones LIKE ? OR organization LIKE ?) "
             "ORDER BY name ASC LIMIT ?",
             (like, like, like, like, limit_per_type),
         )
@@ -151,14 +151,14 @@ async def global_search(
         event_count = _safe_count(
             c,
             "SELECT COUNT(*) FROM calendar_events "
-            "WHERE summary LIKE ? OR description LIKE ? OR location LIKE ?",
+            "WHERE deleted_at IS NULL AND (summary LIKE ? OR description LIKE ? OR location LIKE ?)",
             (like, like, like),
         )
         event_rows = _safe_query(
             c,
             "SELECT id, summary, location, start_time, calendar_name "
             "FROM calendar_events "
-            "WHERE summary LIKE ? OR description LIKE ? OR location LIKE ? "
+            "WHERE deleted_at IS NULL AND (summary LIKE ? OR description LIKE ? OR location LIKE ?) "
             "ORDER BY start_unix DESC LIMIT ?",
             (like, like, like, limit_per_type),
         )
@@ -179,7 +179,7 @@ async def global_search(
         # --- Chat Messages ---
         chat_count = _safe_count(
             c,
-            "SELECT COUNT(*) FROM chat_messages WHERE content LIKE ?",
+            "SELECT COUNT(*) FROM chat_messages WHERE content LIKE ? AND deleted_at IS NULL",
             (like,),
         )
         chat_rows = _safe_query(
@@ -188,7 +188,7 @@ async def global_search(
             "m.conversation_id, cc.name as conversation_name "
             "FROM chat_messages m "
             "JOIN chat_conversations cc ON cc.id = m.conversation_id "
-            "WHERE m.content LIKE ? "
+            "WHERE m.content LIKE ? AND m.deleted_at IS NULL "
             "ORDER BY m.timestamp_unix DESC LIMIT ?",
             (like, limit_per_type),
         )
@@ -212,7 +212,7 @@ async def global_search(
         drive_count = _safe_count(
             c,
             "SELECT COUNT(*) FROM drive_files "
-            "WHERE filename LIKE ? OR extracted_text LIKE ? OR path LIKE ?",
+            "WHERE deleted_at IS NULL AND (filename LIKE ? OR extracted_text LIKE ? OR path LIKE ?)",
             (like, like, like),
         )
         drive_rows = _safe_query(
@@ -220,7 +220,7 @@ async def global_search(
             "SELECT id, filename, path, mime_type, modified_time, "
             "SUBSTR(extracted_text, 1, 200) as snippet "
             "FROM drive_files "
-            "WHERE filename LIKE ? OR extracted_text LIKE ? OR path LIKE ? "
+            "WHERE deleted_at IS NULL AND (filename LIKE ? OR extracted_text LIKE ? OR path LIKE ?) "
             "ORDER BY modified_unix DESC LIMIT ?",
             (like, like, like, limit_per_type),
         )

@@ -65,8 +65,8 @@ async def search_contacts(
         c = conn.cursor()
         like = f"%{q}%"
         where = (
-            "name LIKE ? OR given_name LIKE ? OR family_name LIKE ? "
-            "OR emails LIKE ? OR phones LIKE ? OR organization LIKE ?"
+            "deleted_at IS NULL AND (name LIKE ? OR given_name LIKE ? OR family_name LIKE ? "
+            "OR emails LIKE ? OR phones LIKE ? OR organization LIKE ?)"
         )
         count = c.execute(
             f"SELECT COUNT(*) FROM contacts WHERE {where}",
@@ -92,7 +92,7 @@ async def list_contact_groups():
     conn = get_connection(readonly=True)
     try:
         c = conn.cursor()
-        rows = c.execute("SELECT groups FROM contacts WHERE groups IS NOT NULL").fetchall()
+        rows = c.execute("SELECT groups FROM contacts WHERE groups IS NOT NULL AND deleted_at IS NULL").fetchall()
         group_counts = {}  # type: dict
         for row in rows:
             groups = _parse_json_col(row["groups"])
@@ -116,7 +116,7 @@ async def get_contact(contact_id: int):
     conn = get_connection(readonly=True)
     try:
         row = conn.execute(
-            "SELECT * FROM contacts WHERE id = ?", (contact_id,)
+            "SELECT * FROM contacts WHERE id = ? AND deleted_at IS NULL", (contact_id,)
         ).fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="Contact not found")
@@ -140,8 +140,8 @@ async def list_contacts(
     conn = get_connection(readonly=True)
     try:
         c = conn.cursor()
-        conditions = []  # type: List[str]
-        params = []  # type: list
+        conditions: List[str] = ["deleted_at IS NULL"]
+        params: list = []
 
         if q:
             like = f"%{q}%"

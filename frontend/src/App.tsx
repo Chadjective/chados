@@ -15,6 +15,10 @@ import NotesView from './components/NotesView';
 import GlobalSearch from './components/GlobalSearch';
 import AnalyticsDashboard from './components/AnalyticsDashboard';
 import AIChat from './components/AIChat';
+import TrashView from './components/TrashView';
+import SpaceManager from './components/SpaceManager';
+import TagManager from './components/TagManager';
+import PhotoImport from './components/PhotoImport';
 import './App.css';
 
 function AppLayout() {
@@ -47,6 +51,7 @@ function AppLayout() {
             <Route path="/photos/search" element={<PhotoTimeline />} />
             <Route path="/photos/album/:albumId" element={<PhotoTimeline />} />
             <Route path="/photos/albums" element={<AlbumGrid />} />
+            <Route path="/photos/import" element={<PhotoImport />} />
             <Route path="/contacts" element={<ContactList />} />
             <Route path="/contacts/:id" element={<ContactList />} />
             <Route path="/calendar" element={<CalendarView />} />
@@ -60,6 +65,9 @@ function AppLayout() {
             <Route path="/global-search" element={<GlobalSearch />} />
             <Route path="/analytics" element={<AnalyticsDashboard />} />
             <Route path="/ai-chat" element={<AIChat />} />
+            <Route path="/trash" element={<TrashView />} />
+            <Route path="/space" element={<SpaceManager />} />
+            <Route path="/tags" element={<TagManager />} />
           </Routes>
         </div>
       </div>
